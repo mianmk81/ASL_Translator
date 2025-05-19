@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASL Sign Language Translator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f2f5;
+        }
+        
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        #webcam-container {
+            width: 100%;
+            margin: 20px 0;
+            position: relative;
+        }
+        
+        #webcam {
+            width: 100%;
+            border-radius: 8px;
+        }
+        
+        #detected-signs {
+            margin-top: 20px;
+            padding: 10px;
+            background: #e9ecef;
+            border-radius: 5px;
+            font-size: 18px;
+        }
+        
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+        }
+        
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            transition: background-color 0.2s;
+        }
+        
+        button:hover {
+            background-color: #0056b3;
+        }
+        
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .status {
+            margin-top: 10px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ASL Sign Language Translator</h1>
+        
+        <div class="controls">
+            <button id="start-webcam">Start Webcam</button>
+            <button id="stop-webcam" disabled>Stop Webcam</button>
+        </div>
+        
+        <div id="webcam-container">
+            <img id="webcam" src="" alt="Webcam feed">
+        </div>
+        
+        <div id="detected-signs">
+            Detected Signs: <span id="signs-text">None</span>
+        </div>
+        
+        <p class="status">Status: <span id="connection-status">Not connected</span></p>
+    </div>
+
+    <script>
+        let ws = null;
+        const webcamImg = document.getElementById('webcam');
+        const startBtn = document.getElementById('start-webcam');
+        const stopBtn = document.getElementById('stop-webcam');
+        const statusSpan = document.getElementById('connection-status');
+        const signsText = document.getElementById('signs-text');
+        
+        function updateButtonStates(isConnected) {
+            startBtn.disabled = isConnected;
+            stopBtn.disabled = !isConnected;
+        }
+        
+        function connectWebSocket() {
+            ws = new WebSocket('ws://localhost:8080/ws/webcam');
+            
+            ws.onopen = () => {
+                statusSpan.textContent = 'Connected';
+                updateButtonStates(true);
+            };
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                
+                if (data.error) {
+                    console.error('Error:', data.error);
+                    statusSpan.textContent = `Error: ${data.error}`;
+                    return;
+                }
+                
+                // Update webcam feed
+                if (data.frame) {
+                    webcamImg.src = `data:image/jpeg;base64,${data.frame}`;
+                }
+                
+                // Update detected signs
+                if (data.detected_signs && data.detected_signs.length > 0) {
+                    signsText.textContent = data.detected_signs.join(', ');
+                }
+            };
+            
+            ws.onclose = () => {
+                statusSpan.textContent = 'Disconnected';
+                updateButtonStates(false);
+                ws = null;
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                statusSpan.textContent = 'Connection error';
+            };
+        }
+        
+        startBtn.onclick = () => {
+            if (!ws) {
+                connectWebSocket();
+            }
+        };
+        
+        stopBtn.onclick = () => {
+            if (ws) {
+                ws.close();
+            }
+        };
+        
+        // Clean up on page unload
+        window.onbeforeunload = () => {
+            if (ws) {
+                ws.close();
+            }
+        };
+    </script>
+</body>
+</html>
